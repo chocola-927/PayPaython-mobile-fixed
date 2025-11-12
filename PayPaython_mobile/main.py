@@ -195,10 +195,15 @@ class PayPay():
         self._init_phone = phone
         self._init_password = password
 
-    def _prepare_oauth_par(self):
+        def _prepare_oauth_par(self):
         """
         /bff/v2/oauth2/par の取得。戻り値は JSON か例外発生。
+        code_verifier/code_challenge は self に保持する方式に修正。
         """
+        # まだ code_verifier を持っていなければ生成して保持する
+        if not hasattr(self, "code_verifier") or not hasattr(self, "code_challenge"):
+            self.code_verifier, self.code_challenge = pkce.generate_pkce_pair(43)
+
         payload = {
             "clientId": "pay2-mobile-app-client",
             "clientAppVersion": self.version,
@@ -207,7 +212,7 @@ class PayPay():
             "redirectUri": "paypay://oauth2/callback",
             "responseType": "code",
             "state": pkce.generate_code_verifier(43),
-            "codeChallenge": pkce.generate_code_challenge(pkce.generate_code_verifier(43)),
+            "codeChallenge": self.code_challenge,
             "codeChallengeMethod": "S256",
             "scope": "REGULAR",
             "tokenVersion": "v2",
@@ -221,6 +226,7 @@ class PayPay():
         except Exception:
             raise PayPayNetWorkError("日本以外からは接続できません")
 
+    
     def login(self, url: str):
         """
         パラメータ: url は PayPay の OTL コードなど、もしくは OAuth の redirect id 部分。
@@ -400,7 +406,7 @@ class PayPay():
         # After this point, perform normal sign-in using self.login(url) with the OTL code
         _debug("prepare_login_flow_with_waf complete; continue with login() using obtained OTL/url")
 
-        def get_history(self,size:int=20,cashback:bool=False) -> dict:
+    def get_history(self, size: int = 20, cashback: bool = False) -> dict:
         if not self.access_token:
             raise PayPayLoginError("まずはログインしてください")
 
@@ -417,14 +423,15 @@ class PayPay():
         if cashback:
             params["orderTypes"] = "CASHBACK"
 
-        history = self.session.get(f"https://app4.paypay.ne.jp/bff/v3/getPaymentHistory",params=params,headers=self.headers,proxies=self.proxy).json()
+        history = self.session.get("https://app4.paypay.ne.jp/bff/v3/getPaymentHistory",
+                                   params=params, headers=self.headers, proxies=self.proxy).json()
 
         if history["header"]["resultCode"] == "S0001":
             raise PayPayLoginError(history)
-        
+
         if history["header"]["resultCode"] != "S0000":
             raise PayPayError(history)
-        
+
         return history
     
     def get_balance(self):
