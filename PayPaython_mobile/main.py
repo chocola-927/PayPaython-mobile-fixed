@@ -195,7 +195,7 @@ class PayPay():
         self._init_phone = phone
         self._init_password = password
 
-        def _prepare_oauth_par(self):
+    def _prepare_oauth_par(self):
         """
         /bff/v2/oauth2/par の取得。戻り値は JSON か例外発生。
         code_verifier/code_challenge は self に保持する方式に修正。
