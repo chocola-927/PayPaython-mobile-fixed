@@ -35,7 +35,9 @@ def solve_aws_waf(session, check_url: str = "https://www.paypay.ne.jp/",
 
     # セッションに cookie と headers の cookie を注入
     cookie_name = "aws-waf-token"
+    # set cookie for both .domain and host-specific domain
     session.cookies.set(cookie_name, token, domain="." + domain, path="/")
+    session.cookies.set(cookie_name, token, domain=domain, path="/")
     # headers の cookie にも追加（既存があれば保持）
     prev_cookie = session.headers.get("cookie", "")
     new_cookie = (prev_cookie + ("; " if prev_cookie else "") + f"{cookie_name}={token}")
