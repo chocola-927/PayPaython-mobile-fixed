@@ -324,39 +324,33 @@ class PayPay():
             "User-Agent": "Mozilla/5.0 (Linux; Android 10; SCV38; wv) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132 Mobile Safari/537.36",
             "X-Requested-With": "jp.ne.paypay.android.app"
         }
-# --- ここを置換（par/check の標準呼び出し → ブラウザレス再試行あり） ---
-try:
-    _debug("par/check: 通常呼び出しを試します")
-    par_check_resp = self.session.get("https://www.paypay.ne.jp/portal/api/v2/oauth2/par/check",
-                                      headers=api_headers, proxies=self.proxy, timeout=30)
-    try:
-        par_check = par_check_resp.json()
-    except Exception:
-        par_check = {"header": {"resultCode": "S9999"}}
-except Exception as e:
-    par_check = {"header": {"resultCode": "S9999"}}
+        try:
+            _debug("par/check: 通常呼び出しを試します")
+            par_check_resp = self.session.get("https://www.paypay.ne.jp/portal/api/v2/oauth2/par/check",
+                                              headers=api_headers, proxies=self.proxy, timeout=30)
+            try:
+                par_check = par_check_resp.json()
+            except Exception:
+                par_check = {"header": {"resultCode": "S9999"}}
+        except Exception as e:
+            par_check = {"header": {"resultCode": "S9999"}}
 
-if par_check.get("header", {}).get("resultCode") != "S0000":
-    _debug("par/check failed (S9999 or other). Trying browserless fallback attempts...")
-    # browserless helper を遅延 import（必須でない場合はわかりやすく扱う）
-    try:
-        from .waf_browserless_helper import attempt_par_check_without_browser
-    except Exception as e:
-        raise PayPayLoginError({"error": "waf_browserless_helper_missing", "exc": str(e)})
+        if par_check.get("header", {}).get("resultCode") != "S0000":
+            _debug("par/check failed (S9999 or other). Trying browserless fallback attempts...")
+            try:
+                from .waf_browserless_helper import attempt_par_check_without_browser
+            except Exception as e:
+                raise PayPayLoginError({"error": "waf_browserless_helper_missing", "exc": str(e)})   
+            try:
+                par_check = attempt_par_check_without_browser(self.session,
+                                                             par["payload"]["requestUri"],
+                                                             web_headers, api_headers,
+                                                             proxy=self.proxy,
+                                                             max_retries=3, wait=0.6)
+            except Exception as e:
+                raise PayPayLoginError({"error": "par_check_failed_after_fallback", "detail": str(e)})
 
-    try:
-        par_check = attempt_par_check_without_browser(self.session,
-                                                     par["payload"]["requestUri"],
-                                                     web_headers, api_headers,
-                                                     proxy=self.proxy,
-                                                     max_retries=3, wait=0.6)
-    except Exception as e:
-        # どの処理でもダメなら元のエラーを投げる（詳細を含める）
-        raise PayPayLoginError({"error": "par_check_failed_after_fallback", "detail": str(e)})
-
-_debug("Step 6: PAR チェック成功")
-# --- 置換終わり ---
-
+        _debug("Step 6: PAR チェック成功")
         # 7) パスワード認証
         _debug("Step 7: パスワード認証中...")
         auth_headers = api_headers.copy()
